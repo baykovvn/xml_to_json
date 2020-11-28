@@ -1,55 +1,60 @@
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.reflect.TypeToken;
-import com.opencsv.CSVReader;
-import com.opencsv.bean.ColumnPositionMappingStrategy;
-import com.opencsv.bean.CsvToBean;
-import com.opencsv.bean.CsvToBeanBuilder;
-import java.io.FileReader;
+import org.w3c.dom.*;
+import org.xml.sax.SAXException;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.lang.reflect.Type;
-import java.util.List;
+import java.util.*;
 
 public class Main {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException, SAXException, ParserConfigurationException {
 
-        String[] columnMapping = {"id", "firstName", "lastName", "country", "age"};
-        String fileName = "src\\main\\java\\data.csv";
-        List<Employee> list = parseCSV(columnMapping, fileName);  // чтение файла csv в список list
+        String fileNameXML = "src\\main\\java\\data.xml";
 
-        //list.forEach(System.out::println);
+        List<Employee> employeeList = parseXML(fileNameXML);
 
-        String json = listToJson(list); // конвертация списка csv в json строку
-
-        //System.out.println(json);
+        String json = listToJson(employeeList); // конвертация списка в json строку
 
         writeJson(json);    // записываем в файл строку json
     }
 
-    public static List<Employee> parseCSV(String[] columnMapping, String fileName) {
-        try (CSVReader reader = new CSVReader(new FileReader(fileName))) {
-            ColumnPositionMappingStrategy<Employee> strategy = new ColumnPositionMappingStrategy<>();
-            strategy.setType(Employee.class);
-            strategy.setColumnMapping(columnMapping);
-            CsvToBean<Employee> csv = new CsvToBeanBuilder<Employee>(reader)
-                    .withMappingStrategy(strategy)
-                    .build();
-            List<Employee> list = csv.parse();
-            return list;
-        } catch (IOException fileNotFoundException) {
-            fileNotFoundException.printStackTrace();
+    public static List<Employee> parseXML(String fileNameXML) throws ParserConfigurationException, IOException, SAXException {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        Document doc = builder.parse(new File(fileNameXML));
+        doc.normalizeDocument();
+        Node root = doc.getDocumentElement();
+        return read(root);
+    }
+
+    public static List<Employee> read(Node root) {
+        NodeList nodeList = root.getChildNodes();
+        List<Employee> employeeList = new ArrayList<>();
+        for (int i = 0; i < nodeList.getLength(); i++) {
+            Node node = nodeList.item(i);
+            if (Node.ELEMENT_NODE == node.getNodeType()) {
+                Element element = (Element) node;
+                Employee employee = new Employee(
+                        Long.parseLong(element.getElementsByTagName("id").item(0).getTextContent()),
+                        element.getElementsByTagName("firstName").item(0).getTextContent(),
+                        element.getElementsByTagName("lastName").item(0).getTextContent(),
+                        element.getElementsByTagName("country").item(0).getTextContent(),
+                        Integer.parseInt(element.getElementsByTagName("age").item(0).getTextContent()));
+                employeeList.add(employee);
+            }
         }
-        return null;
+        return employeeList;
     }
 
     public static String listToJson(List<Employee> list) {
         GsonBuilder builder = new GsonBuilder();
         Gson gson = builder.create();
-        Type listType = new TypeToken<List<Type>>() {}.getType();
-        String json = gson.toJson(list, listType);
-        return json;
+        return gson.toJson(list);
     }
 
     public static void writeJson(String json) {
@@ -57,7 +62,8 @@ public class Main {
             file.write(json);
             file.flush();
         } catch (IOException e) {
-            e.printStackTrace();}
+            e.printStackTrace();
+        }
     }
 }
 
